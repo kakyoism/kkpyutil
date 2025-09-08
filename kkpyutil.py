@@ -1795,13 +1795,13 @@ def convert_compound_cases(text, style='pascal', instyle='auto'):
 
     def _detect_casing(txt):
         case_patterns = {
-            'snake': r'^[a-z][a-z0-9]*(_[a-zA_Z0-9]+)*$',
-            'SNAKE': r'^[A-Z]+(_[A-Z0-9]+)*$',
+            'snake': r'^[a-zA-Z][a-zA-Z0-9\(\)]*(_[a-zA-Z0-9\(\)]+)+$',  # Must have at least one underscore
+            'SNAKE': r'^[A-Z][A-Z0-9\(\)]*(_[A-Z0-9\(\)]+)*$',
             'camel': r'^[a-z]+([A-Z][a-z0-9]*)*$',
             'kebab': r'^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)+$',
             'pascal': r'^[A-Z][a-z0-9]+([A-Z][a-z0-9]*)*$',
             'phrase': r'^[a-z]+( [a-z]+)*$',
-            'title': r'^[A-Z][a-z]*([ ][A-Z][a-z]*)*$',
+            'title': r'^[A-Z][a-z]*( [A-Z\(][a-z\)]*)*$',
         }
         for case_style, pattern in case_patterns.items():
             if re.match(pattern, txt):
