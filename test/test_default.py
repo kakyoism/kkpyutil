@@ -1869,6 +1869,76 @@ def test_move_file():
     util.safe_remove(_gen_dir)
 
 
+def test_sync_directories_overwrites_existing(tmp_path):
+    # 1. Setup Source Directory
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+
+    # Create a sub-directory and a file in source
+    content_dir_1 = src_dir / "content_dir_1"
+    content_dir_1.mkdir()
+    src_file = content_dir_1 / "data.txt"
+    src_file.write_text("New Content")
+
+    # 2. Setup Destination Directory (with old content)
+    dst_dir = tmp_path / "dst"
+    dst_dir.mkdir()
+
+    # Create the same sub-directory and file in destination with old data
+    dst_content_dir_1 = dst_dir / "content_dir_1"
+    dst_content_dir_1.mkdir()
+    dst_file = dst_content_dir_1 / "data.txt"
+    dst_file.write_text("Old Content")
+
+    # 3. Execute the function
+    util.sync_dirs(str(src_dir), str(dst_dir))
+
+    # 4. Assertions
+    # Check if the file was overwritten
+    assert dst_file.read_text() == "New Content"
+    # Check if the directory structure exists
+    assert os.path.isdir(dst_content_dir_1)
+
+
+def test_sync_directories_handles_missing_src(capsys):
+    # Testing how it handles a non-existent source
+    assert not util.sync_dirs("non_existent_path", "some_dst")
+
+
+def test_sync_directories_preserves_unrelated_dst_files(tmp_path):
+    # 1. Setup Source
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    (src_dir / "common_folder").mkdir()
+    (src_dir / "common_folder" / "file.txt").write_text("New Source Data")
+
+    # 2. Setup Destination
+    dst_dir = tmp_path / "dst"
+    dst_dir.mkdir()
+
+    # Existing folder that should be overwritten
+    (dst_dir / "common_folder").mkdir()
+    (dst_dir / "common_folder" / "file.txt").write_text("Old Data")
+
+    # UNRELATED folder and file that should stay UNTOUCHED
+    unrelated_dir = dst_dir / "unique_to_dst"
+    unrelated_dir.mkdir()
+    unrelated_file = unrelated_dir / "important_record.txt"
+    unrelated_file.write_text("Do Not Delete Me")
+
+    # 3. Run the sync
+    util.sync_dirs(str(src_dir), str(dst_dir))
+
+    # 4. Assertions
+    # Check that common files WERE updated
+    assert (dst_dir / "common_folder" / "file.txt").read_text() == "New Source Data"
+
+    # Check that unrelated files STILL EXIST and are UNCHANGED
+    assert unrelated_file.exists()
+    assert unrelated_file.read_text() == "Do Not Delete Me"
+    assert unrelated_dir.is_dir()
+
+
 def test_compare_dirs():
     src_dir = osp.join(_org_dir, 'compare_these', 'dir1')
     dst_dir = osp.join(_org_dir, 'compare_these', 'dir1_clone')
@@ -2128,8 +2198,9 @@ def test_http_post(monkeypatch):
 
 
 def test_lazy_download():
-    url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Tsunami_by_hokusai_19th_century.jpg/320px-Tsunami_by_hokusai_19th_century.jpg'
-    file = osp.join(_gen_dir, 'tsunami.jpg')
+    # Use httpbin.org for reliable testing instead of Wikipedia which may rate-limit
+    url = 'https://httpbin.org/image/jpeg'
+    file = osp.join(_gen_dir, 'test_image.jpg')
     assert osp.isfile(util.lazy_download(file, url))
     util.safe_remove(_gen_dir)
 

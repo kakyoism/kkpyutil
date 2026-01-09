@@ -2079,6 +2079,27 @@ def move_file(src, dst, isdstdir=False):
     return dst if not isdstdir else osp.join(dst, osp.basename(src))
 
 
+def sync_dirs(src_root, dst_root):
+    # Ensure the source directory exists
+    if not os.path.exists(src_root):
+        glogger.error(f"Error: Source directory {src_root} does not exist.")
+        return False
+    # Iterate through the items inside the source directory
+    for item in os.listdir(src_root):
+        src_path = os.path.join(src_root, item)
+        dst_path = os.path.join(dst_root, item)
+        if os.path.isdir(src_path):
+            # copytree with dirs_exist_ok=True will overwrite existing files
+            # and merge directories without warning.
+            shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
+            glogger.info(f"Copied directory: {item}")
+        else:
+            # For individual files at the root of my_src_dir
+            shutil.copy2(src_path, dst_path)
+            glogger.info(f"Copied file: {item}")
+    return True
+
+
 def compare_dirs(dir1, dir2, ignoreddirpatterns=(), ignoredfilepatterns=(), showdiff=True):
     """
     - filecmp.dircmp() supports explicit name ignores only
@@ -2974,8 +2995,10 @@ def lazy_download(local_file, url, file_open_mode='wb', logger=None):
         return local_file
     os.makedirs(osp.dirname(local_file), exist_ok=True)
     logger = logger or glogger
+    # Add User-Agent header to avoid 403 errors from websites that block bots
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     with open(local_file, file_open_mode) as fp:
-        with urllib.request.urlopen(url) as response:
+        with urllib.request.urlopen(req) as response:
             logger.info(f'Downloading: {url} => {local_file}')
             fp.write(response.read())
     return local_file
