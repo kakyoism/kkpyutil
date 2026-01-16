@@ -2084,6 +2084,26 @@ def sync_dirs(src_root, dst_root, logger=glogger, sudo=False):
     - assume src and dst folders are the same level of folder tree
     - the result will be dst_root mirrors src_root
     """
+    def _run_sudo_command(_cmd, password, _logger):
+        sudo_cmd = ['sudo', '-S'] + _cmd
+        try:
+            process = subprocess.Popen(
+                sudo_cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            stdout, stderr = process.communicate(input=f'{password}\n')
+            if process.returncode == 0:
+                _logger.debug(f"Successfully executed: {' '.join(_cmd)}")
+                return True
+            else:
+                _logger.error(f"Sudo command failed: {stderr}")
+                return False
+        except Exception as e:
+            _logger.error(f"Failed to execute sudo command: {e}")
+            return False
     # Ensure the source directory exists
     if not os.path.exists(src_root):
         logger.error(f"Error: Source directory {src_root} does not exist.")
@@ -2110,21 +2130,23 @@ def sync_dirs(src_root, dst_root, logger=glogger, sudo=False):
     if not user:
         logger.error("Could not determine the current user.")
         return False
-    try:
-        # rsync flags:
-        # -a: Archive mode (preserves links, etc.)
-        # --chown: Forces the owner:group of all copied files
-        # Note: 'staff' is the default group for users on macOS
-        cmd = [
-            "sudo", "rsync", "-av", "--inplace",
-            f"--chown={user}:staff",
-            osp.join(src_root, ""),  # Trailing slash copies contents
-            dst_root
-        ]
-        logger.info(f"Syncing to {dst_root} and setting owner to '{user}'...")
-        subprocess.check_call(cmd)
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Sync failed with error code: {e.returncode}")
+    pwd = prompt_macos_admin_password()
+    if pwd is None:
+        logger.error('Failed to get admin password')
+        return False
+    # rsync flags:
+    # -a: Archive mode (preserves links, etc.)
+    # --chown: Forces the owner:group of all copied files
+    # Note: 'staff' is the default group for users on macOS
+    cmd = [
+        'rsync', '-av', '--inplace',
+        f'--chown={user}:staff',
+        osp.join(src_root, ''),  # Trailing slash copies contents
+        dst_root
+    ]
+    logger.info(f"Syncing to {dst_root} and setting owner to '{user}'...")
+    if not _run_sudo_command(cmd, pwd, logger):
+        logger.error(f'Sync failed with command: {cmd}; you may have entered wrong password')
         return False
     return True
 
@@ -3187,6 +3209,25 @@ def json_from_text(json_str):
         return data, None
     except json.JSONDecodeError as e:
         return None, e
+
+
+def prompt_macos_admin_password(action="Your operation"):
+    applescript = f'''
+display dialog "{action} requires administrator privileges. Please enter your password:" default answer "" with hidden answer buttons {"Cancel", "OK"} default button "OK"
+text returned of the result
+'''
+    try:
+        result = subprocess.run(
+            ['osascript', '-e', applescript],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError:
+        # User cancelled the dialog
+        return None
+
 
 # endregion
 
