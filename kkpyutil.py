@@ -2079,10 +2079,14 @@ def move_file(src, dst, isdstdir=False):
     return dst if not isdstdir else osp.join(dst, osp.basename(src))
 
 
-def sync_dirs(src_root, dst_root):
+def sync_dirs(src_root, dst_root, logger=glogger):
+    """
+    - assume src and dst folders are the same level of folder tree
+    - the result will be dst_root mirrors src_root
+    """
     # Ensure the source directory exists
     if not os.path.exists(src_root):
-        glogger.error(f"Error: Source directory {src_root} does not exist.")
+        logger.error(f"Error: Source directory {src_root} does not exist.")
         return False
     # Iterate through the items inside the source directory
     for item in os.listdir(src_root):
@@ -2092,11 +2096,11 @@ def sync_dirs(src_root, dst_root):
             # copytree with dirs_exist_ok=True will overwrite existing files
             # and merge directories without warning.
             shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
-            glogger.info(f"Copied directory: {item}")
+            logger.info(f"Copied directory: {item}")
         else:
             # For individual files at the root of my_src_dir
             shutil.copy2(src_path, dst_path)
-            glogger.info(f"Copied file: {item}")
+            logger.info(f"Copied file: {item}")
     return True
 
 
