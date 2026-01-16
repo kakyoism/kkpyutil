@@ -3212,11 +3212,14 @@ def json_from_text(json_str):
 
 
 def prompt_macos_admin_password(action="Your operation"):
+    # Use {{ }} to escape curly braces in an f-string for AppleScript lists
     applescript = f'''
-display dialog "{action} requires administrator privileges. Please enter your password:" default answer "" with hidden answer buttons {"Cancel", "OK"} default button "OK"
-text returned of the result
-'''
+        display dialog "{action} requires administrator privileges. Please enter your password:" default answer "" with hidden answer buttons {{"Cancel", "OK"}} default button "OK"
+        text returned of the result
+        '''
     try:
+        # We add 'with echoing' logic or focus if needed,
+        # but the main fix is the braces below.
         result = subprocess.run(
             ['osascript', '-e', applescript],
             capture_output=True,
@@ -3224,8 +3227,8 @@ text returned of the result
             check=True
         )
         return result.stdout.strip()
-    except subprocess.CalledProcessError:
-        # User cancelled the dialog
+    except subprocess.CalledProcessError as e:
+        # If the dialog doesn't show, check e.stderr for AppleScript errors
         return None
 
 
@@ -3233,8 +3236,7 @@ text returned of the result
 
 
 def _test():
-    # print(say('hello'))
-    print(create_guid())
+    sync_dirs('/Volumes/public/Audio/Tools/WwisePlugins/MiaSidechainRecv/2025.2.3.1/Wwise2023.1/Authoring', '/Library/Application Support/Audiokinetic/Wwise 2023.1.14.8770/Authoring', sudo=True)
 
 
 if __name__ == '__main__':
