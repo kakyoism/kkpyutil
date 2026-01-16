@@ -1939,6 +1939,79 @@ def test_sync_directories_preserves_unrelated_dst_files(tmp_path):
     assert unrelated_dir.is_dir()
 
 
+def test_sync_directories_with_sudo_mode(tmp_path):
+    """Test sync_dirs with sudo=True to merge to system folders using rsync"""
+    # 1. Setup Source Directory
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+
+    # Create test content in source
+    (src_dir / "test_file.txt").write_text("Test Content")
+    test_subdir = src_dir / "subdir"
+    test_subdir.mkdir()
+    (test_subdir / "nested_file.txt").write_text("Nested Content")
+
+    # 2. Setup Destination Directory
+    dst_dir = tmp_path / "dst"
+    dst_dir.mkdir()
+
+    # 3. Mock subprocess.check_call to avoid actually running sudo
+    with um.patch('subprocess.check_call') as mock_check_call:
+        # Mock environment to simulate a user
+        with um.patch.dict(os.environ, {'USER': 'testuser', 'SUDO_USER': 'testuser'}):
+            # Run sync with sudo=True
+            result = util.sync_dirs(str(src_dir), str(dst_dir), sudo=True)
+
+            # 4. Assertions
+            assert result is True, "sync_dirs should return True on success"
+
+            # Verify subprocess.check_call was called with correct rsync command
+            assert mock_check_call.called, "subprocess.check_call should be called"
+            call_args = mock_check_call.call_args[0][0]
+
+            # Verify the command structure
+            assert call_args[0] == "sudo", "First arg should be 'sudo'"
+            assert call_args[1] == "rsync", "Second arg should be 'rsync'"
+            assert "-av" in call_args, "Should include -av flag"
+            assert "--inplace" in call_args, "Should include --inplace flag"
+            assert "--chown=testuser:staff" in call_args, "Should set ownership to testuser:staff"
+            assert call_args[-2].endswith("/"), "Source path should have trailing slash"
+            assert call_args[-1] == str(dst_dir), "Last arg should be destination"
+
+
+def test_sync_directories_with_sudo_mode_no_user(tmp_path):
+    """Test sync_dirs with sudo=True when USER environment variable is not set"""
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    dst_dir = tmp_path / "dst"
+    dst_dir.mkdir()
+
+    # Mock environment without USER or SUDO_USER
+    with um.patch.dict(os.environ, {}, clear=True):
+        result = util.sync_dirs(str(src_dir), str(dst_dir), sudo=True)
+
+        # Should return False when user cannot be determined
+        assert result is False, "sync_dirs should return False when user cannot be determined"
+
+
+def test_sync_directories_with_sudo_mode_rsync_failure(tmp_path):
+    """Test sync_dirs with sudo=True when rsync command fails"""
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    dst_dir = tmp_path / "dst"
+    dst_dir.mkdir()
+
+    # Mock subprocess.check_call to raise CalledProcessError
+    with um.patch('subprocess.check_call') as mock_check_call:
+        mock_check_call.side_effect = subprocess.CalledProcessError(1, 'rsync')
+
+        with um.patch.dict(os.environ, {'USER': 'testuser'}):
+            result = util.sync_dirs(str(src_dir), str(dst_dir), sudo=True)
+
+            # Should return False when rsync fails
+            assert result is False, "sync_dirs should return False when rsync fails"
+
+
 def test_compare_dirs():
     src_dir = osp.join(_org_dir, 'compare_these', 'dir1')
     dst_dir = osp.join(_org_dir, 'compare_these', 'dir1_clone')

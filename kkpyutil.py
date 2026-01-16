@@ -2079,7 +2079,7 @@ def move_file(src, dst, isdstdir=False):
     return dst if not isdstdir else osp.join(dst, osp.basename(src))
 
 
-def sync_dirs(src_root, dst_root, logger=glogger):
+def sync_dirs(src_root, dst_root, logger=glogger, sudo=False):
     """
     - assume src and dst folders are the same level of folder tree
     - the result will be dst_root mirrors src_root
@@ -2088,19 +2088,44 @@ def sync_dirs(src_root, dst_root, logger=glogger):
     if not os.path.exists(src_root):
         logger.error(f"Error: Source directory {src_root} does not exist.")
         return False
-    # Iterate through the items inside the source directory
-    for item in os.listdir(src_root):
-        src_path = os.path.join(src_root, item)
-        dst_path = os.path.join(dst_root, item)
-        if os.path.isdir(src_path):
-            # copytree with dirs_exist_ok=True will overwrite existing files
-            # and merge directories without warning.
-            shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
-            logger.info(f"Copied directory: {item}")
-        else:
-            # For individual files at the root of my_src_dir
-            shutil.copy2(src_path, dst_path)
-            logger.info(f"Copied file: {item}")
+    if not sudo:
+        # Iterate through the items inside the source directory
+        for item in os.listdir(src_root):
+            src_path = os.path.join(src_root, item)
+            dst_path = os.path.join(dst_root, item)
+            if os.path.isdir(src_path):
+                # copytree with dirs_exist_ok=True will overwrite existing files
+                # and merge directories without warning.
+                shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
+                logger.info(f"Copied directory: {item}")
+            else:
+                # For individual files at the root of my_src_dir
+                shutil.copy2(src_path, dst_path)
+                logger.info(f"Copied file: {item}")
+        return True
+    # on macOS, merge to system folders
+    # Identify the original user (the one who called sudo)
+    # Default to current effective user if SUDO_USER isn't set
+    user = os.environ.get('SUDO_USER') or os.environ.get('USER')
+    if not user:
+        logger.error("Could not determine the current user.")
+        return False
+    try:
+        # rsync flags:
+        # -a: Archive mode (preserves links, etc.)
+        # --chown: Forces the owner:group of all copied files
+        # Note: 'staff' is the default group for users on macOS
+        cmd = [
+            "sudo", "rsync", "-av", "--inplace",
+            f"--chown={user}:staff",
+            osp.join(src_root, ""),  # Trailing slash copies contents
+            dst_root
+        ]
+        logger.info(f"Syncing to {dst_root} and setting owner to '{user}'...")
+        subprocess.check_call(cmd)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Sync failed with error code: {e.returncode}")
+        return False
     return True
 
 
