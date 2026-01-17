@@ -2148,6 +2148,13 @@ def sync_dirs(src_root, dst_root, logger=glogger, sudo=False):
     if not _run_sudo_command(cmd, pwd, logger):
         logger.error(f'Sync failed with command: {cmd}; you may have entered wrong password')
         return False
+    # 3. Step Two: Fix Ownership
+    # -R is recursive. We set it to the user and the 'staff' group.
+    chown_cmd = ['chown', '-R', f'{user}:staff', dst_root]
+    logger.info(f"Setting ownership of {dst_root} to {user}...")
+    if not _run_sudo_command(chown_cmd, pwd, logger):
+        logger.error("Failed to set ownership.")
+        return False
     return True
 
 
