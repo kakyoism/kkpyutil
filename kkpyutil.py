@@ -2079,7 +2079,7 @@ def move_file(src, dst, isdstdir=False):
     return dst if not isdstdir else osp.join(dst, osp.basename(src))
 
 
-def sync_dirs(src_root, dst_root, logger=glogger, sudo=False):
+def sync_dirs(src_root, dst_root, logger=glogger, sudo=False, excludes=()):
     """
     - assume src and dst folders are the same level of folder tree
     - the result will be dst_root mirrors src_root
@@ -2116,7 +2116,7 @@ def sync_dirs(src_root, dst_root, logger=glogger, sudo=False):
             if os.path.isdir(src_path):
                 # copytree with dirs_exist_ok=True will overwrite existing files
                 # and merge directories without warning.
-                shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
+                shutil.copytree(src_path, dst_path, dirs_exist_ok=True, ignore=shutil.ignore_patterns(*excludes) if excludes else None)
                 logger.info(f"Merged directory: {src_path} -> {dst_path}")
             else:
                 # For individual files at the root of my_src_dir

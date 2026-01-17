@@ -1955,28 +1955,38 @@ def test_sync_directories_with_sudo_mode(tmp_path):
     dst_dir = tmp_path / "dst"
     dst_dir.mkdir()
 
-    # 3. Mock subprocess.check_call to avoid actually running sudo
-    with um.patch('subprocess.check_call') as mock_check_call:
-        # Mock environment to simulate a user
-        with um.patch.dict(os.environ, {'USER': 'testuser', 'SUDO_USER': 'testuser'}):
-            # Run sync with sudo=True
-            result = util.sync_dirs(str(src_dir), str(dst_dir), sudo=True)
+    # 3. Mock subprocess.Popen and prompt_macos_admin_password to avoid actually running sudo
+    with um.patch('kkpyutil.prompt_macos_admin_password') as mock_prompt:
+        mock_prompt.return_value = 'test_password'
 
-            # 4. Assertions
-            assert result is True, "sync_dirs should return True on success"
+        with um.patch('subprocess.Popen') as mock_popen:
+            # Mock the process to return success
+            mock_process = um.MagicMock()
+            mock_process.communicate.return_value = ('', '')
+            mock_process.returncode = 0
+            mock_popen.return_value = mock_process
 
-            # Verify subprocess.check_call was called with correct rsync command
-            assert mock_check_call.called, "subprocess.check_call should be called"
-            call_args = mock_check_call.call_args[0][0]
+            # Mock environment to simulate a user
+            with um.patch.dict(os.environ, {'USER': 'testuser', 'SUDO_USER': 'testuser'}):
+                # Run sync with sudo=True
+                result = util.sync_dirs(str(src_dir), str(dst_dir), sudo=True)
 
-            # Verify the command structure
-            assert call_args[0] == "sudo", "First arg should be 'sudo'"
-            assert call_args[1] == "rsync", "Second arg should be 'rsync'"
-            assert "-av" in call_args, "Should include -av flag"
-            assert "--inplace" in call_args, "Should include --inplace flag"
-            assert "--chown=testuser:staff" in call_args, "Should set ownership to testuser:staff"
-            assert call_args[-2].endswith("/"), "Source path should have trailing slash"
-            assert call_args[-1] == str(dst_dir), "Last arg should be destination"
+                # 4. Assertions
+                assert result is True, "sync_dirs should return True on success"
+
+                # Verify prompt was called
+                assert mock_prompt.called, "prompt_macos_admin_password should be called"
+
+                # Verify Popen was called (for rsync and chown)
+                assert mock_popen.call_count == 2, "Should call Popen twice (rsync + chown)"
+
+                # Check first call (rsync)
+                first_call_args = mock_popen.call_args_list[0][0][0]
+                assert first_call_args[0] == "sudo", "First arg should be 'sudo'"
+                assert first_call_args[1] == "-S", "Second arg should be '-S' for password input"
+                assert first_call_args[2] == "rsync", "Third arg should be 'rsync'"
+                assert "-av" in first_call_args, "Should include -av flag"
+                assert "--inplace" in first_call_args, "Should include --inplace flag"
 
 
 def test_sync_directories_with_sudo_mode_no_user(tmp_path):
@@ -2001,15 +2011,118 @@ def test_sync_directories_with_sudo_mode_rsync_failure(tmp_path):
     dst_dir = tmp_path / "dst"
     dst_dir.mkdir()
 
-    # Mock subprocess.check_call to raise CalledProcessError
-    with um.patch('subprocess.check_call') as mock_check_call:
-        mock_check_call.side_effect = subprocess.CalledProcessError(1, 'rsync')
+    # Mock prompt_macos_admin_password and subprocess.Popen to simulate rsync failure
+    with um.patch('kkpyutil.prompt_macos_admin_password') as mock_prompt:
+        mock_prompt.return_value = 'test_password'
+
+        with um.patch('subprocess.Popen') as mock_popen:
+            # Mock the process to return failure
+            mock_process = um.MagicMock()
+            mock_process.communicate.return_value = ('', 'rsync error')
+            mock_process.returncode = 1
+            mock_popen.return_value = mock_process
+
+            with um.patch.dict(os.environ, {'USER': 'testuser'}):
+                result = util.sync_dirs(str(src_dir), str(dst_dir), sudo=True)
+
+                # Should return False when rsync fails
+                assert result is False, "sync_dirs should return False when rsync fails"
+
+
+def test_sync_directories_with_sudo_mode_no_password(tmp_path):
+    """Test sync_dirs with sudo=True when password prompt fails"""
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    dst_dir = tmp_path / "dst"
+    dst_dir.mkdir()
+
+    # Mock prompt_macos_admin_password to return None (user cancelled)
+    with um.patch('kkpyutil.prompt_macos_admin_password') as mock_prompt:
+        mock_prompt.return_value = None
 
         with um.patch.dict(os.environ, {'USER': 'testuser'}):
             result = util.sync_dirs(str(src_dir), str(dst_dir), sudo=True)
 
-            # Should return False when rsync fails
-            assert result is False, "sync_dirs should return False when rsync fails"
+            # Should return False when password prompt fails
+            assert result is False, "sync_dirs should return False when password prompt fails"
+
+
+def test_sync_directories_with_excludes(tmp_path):
+    """Test sync_dirs with excludes parameter to ignore specific patterns"""
+    # 1. Setup Source Directory with various files
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+
+    # Create a subdirectory with multiple files
+    subdir = src_dir / "project"
+    subdir.mkdir()
+
+    # Files that should be copied
+    (subdir / "main.py").write_text("print('main')")
+    (subdir / "utils.py").write_text("print('utils')")
+    (subdir / "README.md").write_text("# Project")
+
+    # Files that should be excluded
+    (subdir / "test.pyc").write_text("compiled")
+    (subdir / "cache.tmp").write_text("temporary")
+    (subdir / "__pycache__").mkdir()
+    (subdir / "__pycache__" / "main.cpython-311.pyc").write_text("cached")
+
+    # Create another subdirectory
+    datadir = src_dir / "data"
+    datadir.mkdir()
+    (datadir / "config.json").write_text('{"key": "value"}')
+    (datadir / "backup.bak").write_text("old backup")
+
+    # 2. Setup Destination Directory
+    dst_dir = tmp_path / "dst"
+    dst_dir.mkdir()
+
+    # 3. Run sync with exclude patterns
+    excludes = ('*.pyc', '*.tmp', '__pycache__', '*.bak')
+    result = util.sync_dirs(str(src_dir), str(dst_dir), excludes=excludes)
+
+    # 4. Assertions
+    assert result is True, "sync_dirs should return True on success"
+
+    # Check that non-excluded files WERE copied
+    assert (dst_dir / "project" / "main.py").exists()
+    assert (dst_dir / "project" / "main.py").read_text() == "print('main')"
+    assert (dst_dir / "project" / "utils.py").exists()
+    assert (dst_dir / "project" / "README.md").exists()
+    assert (dst_dir / "data" / "config.json").exists()
+
+    # Check that excluded files were NOT copied
+    assert not (dst_dir / "project" / "test.pyc").exists(), "*.pyc files should be excluded"
+    assert not (dst_dir / "project" / "cache.tmp").exists(), "*.tmp files should be excluded"
+    assert not (dst_dir / "project" / "__pycache__").exists(), "__pycache__ directories should be excluded"
+    assert not (dst_dir / "data" / "backup.bak").exists(), "*.bak files should be excluded"
+
+
+def test_sync_directories_without_excludes(tmp_path):
+    """Test sync_dirs without excludes parameter copies everything"""
+    # 1. Setup Source Directory
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+
+    subdir = src_dir / "files"
+    subdir.mkdir()
+    (subdir / "data.txt").write_text("data")
+    (subdir / "temp.tmp").write_text("temp")
+    (subdir / "cache.pyc").write_text("cache")
+
+    # 2. Setup Destination Directory
+    dst_dir = tmp_path / "dst"
+    dst_dir.mkdir()
+
+    # 3. Run sync WITHOUT excludes
+    result = util.sync_dirs(str(src_dir), str(dst_dir))
+
+    # 4. Assertions - ALL files should be copied
+    assert result is True
+    assert (dst_dir / "files" / "data.txt").exists()
+    assert (dst_dir / "files" / "temp.tmp").exists(), "Without excludes, .tmp files should be copied"
+    assert (dst_dir / "files" / "cache.pyc").exists(), "Without excludes, .pyc files should be copied"
 
 
 def test_compare_dirs():
