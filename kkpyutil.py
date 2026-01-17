@@ -2140,7 +2140,6 @@ def sync_dirs(src_root, dst_root, logger=glogger, sudo=False):
     # Note: 'staff' is the default group for users on macOS
     cmd = [
         'rsync', '-av', '--inplace',
-        f'--chown={user}:staff',
         osp.join(src_root, ''),  # Trailing slash copies contents
         dst_root
     ]
