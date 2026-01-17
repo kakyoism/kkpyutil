@@ -2110,18 +2110,18 @@ def sync_dirs(src_root, dst_root, logger=glogger, sudo=False):
         return False
     if not sudo:
         # Iterate through the items inside the source directory
-        for item in os.listdir(src_root):
-            src_path = os.path.join(src_root, item)
-            dst_path = os.path.join(dst_root, item)
+        for subpath in os.listdir(src_root):
+            src_path = os.path.join(src_root, subpath)
+            dst_path = os.path.join(dst_root, subpath)
             if os.path.isdir(src_path):
                 # copytree with dirs_exist_ok=True will overwrite existing files
                 # and merge directories without warning.
                 shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
-                logger.info(f"Copied directory: {item}")
+                logger.info(f"Merged directory: {src_path} -> {dst_path}")
             else:
                 # For individual files at the root of my_src_dir
                 shutil.copy2(src_path, dst_path)
-                logger.info(f"Copied file: {item}")
+                logger.info(f"Copied file: {src_path} -> {dst_path}")
         return True
     # on macOS, merge to system folders
     # Identify the original user (the one who called sudo)
