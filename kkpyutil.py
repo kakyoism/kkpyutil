@@ -2116,7 +2116,7 @@ def sync_dirs(src_root, dst_root, logger=glogger, sudo=False, excludes=()):
             if os.path.isdir(src_path):
                 # copytree with dirs_exist_ok=True will overwrite existing files
                 # and merge directories without warning.
-                shutil.copytree(src_path, dst_path, dirs_exist_ok=True, ignore=shutil.ignore_patterns(*excludes) if excludes else None)
+                shutil.copytree(src_path, dst_path, dirs_exist_ok=True, copy_function=shutil.copy, ignore=shutil.ignore_patterns(*excludes) if excludes else None)
                 logger.info(f"Merged directory: {src_path} -> {dst_path}")
             else:
                 # For individual files at the root of my_src_dir
