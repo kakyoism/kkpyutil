@@ -2754,3 +2754,30 @@ def test_format_callstack():
     callstack = util.format_callstack()
     assert 'test_default.py' in callstack
     assert 'inspect.stack()' in callstack
+
+
+def test_join_unc_paths():
+    """Test join_unc_paths() function for UNC path joining"""
+    # Test basic UNC path with leading backslashes
+    assert util.join_unc_paths('\\\\server', 'share', 'folder') == '\\server\\share\\folder'
+
+    # Test path without leading backslashes
+    assert util.join_unc_paths('server', 'share', 'folder') == 'server\\share\\folder'
+
+    # Test mixed forward/backward slashes normalization
+    assert util.join_unc_paths('\\\\server/share', 'folder\\file') == '\\server\\share\\folder\\file'
+
+    # Test empty strings are filtered out
+    assert util.join_unc_paths('\\\\server', '', 'share', '', 'folder') == '\\server\\share\\folder'
+
+    # Test forward slash prefix is preserved as backslash
+    assert util.join_unc_paths('//server', 'share') == '\\server\\share'
+
+    # Test single path segment
+    assert util.join_unc_paths('\\\\server') == '\\server'
+
+    # Test trailing slashes are stripped
+    assert util.join_unc_paths('\\\\server\\', 'share\\', 'folder\\') == '\\server\\share\\folder'
+
+    # Test using raw string syntax (more natural for Windows paths)
+    assert util.join_unc_paths(r'\\server', r'share\subfolder', r'file.txt') == r'\server\share\subfolder\file.txt'

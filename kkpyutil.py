@@ -3238,6 +3238,17 @@ def prompt_macos_admin_password(action="Your operation"):
         return None
 
 
+def join_unc_paths(*paths):
+    # 1. Standardize all inputs to use backslashes and filter out empty strings
+    segments = [str(p).replace('/', '\\').strip('\\') for p in paths if p]
+
+    # 2. Handle the leading slash: if the first input started with \, preserve it
+    prefix = '\\' if paths[0].startswith(('\\', '/')) else ''
+
+    # 3. Join everything with single backslashes
+    return prefix + '\\'.join(segments)
+
+
 # endregion
 
 
