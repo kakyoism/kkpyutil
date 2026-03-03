@@ -1797,9 +1797,9 @@ def convert_compound_cases(text, style='pascal', instyle='auto'):
         case_patterns = {
             'snake': r'^[a-zA-Z][a-zA-Z0-9()]*(_[a-zA-Z0-9()]+)+$',  # Must have at least one underscore
             'SNAKE': r'^[A-Z][A-Z0-9()]*(_[A-Z0-9()]+)+$',
-            'camel': r'^[a-z]+([A-Z][a-z0-9]*)*$',
+            'camel': r'^[a-z]+([A-Z]+[a-z0-9]*)*$',  # Updated to handle acronyms like getHTTPResponse
             'kebab': r'^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)+$',
-            'pascal': r'^[A-Z][a-z0-9]+([A-Z][a-z0-9]*)*$',
+            'pascal': r'^[A-Z]([a-z0-9]+|[A-Z0-9]*[a-z][a-z0-9]*)*([A-Z]([a-z0-9]+|[A-Z0-9]*))*$',  # Updated to handle acronyms like HTTPSConnection
             'phrase': r'^[a-z]+( [a-z]+)*$',
             'title': r'^[A-Z(][a-zA-Z0-9()/*]*( [A-Z(][a-zA-Z0-9()/*]*)*$',
         }
@@ -1819,12 +1819,23 @@ def convert_compound_cases(text, style='pascal', instyle='auto'):
     elif in_style == 'kebab':
         snake_text = text.replace('-', '_')
     elif in_style in ('camel', 'pascal'):
-        anchors = [c for c, char in enumerate(text) if char.isupper()]
-        # prefix _ before anchors
-        chars = list(text)
-        for c in reversed(anchors):
-            chars.insert(c, '_')
-        snake_text = ''.join(chars).lstrip('_').lower()
+        # Smart conversion that handles acronyms (e.g., ParamID -> param_id, HTTPServer -> http_server)
+        # Insert underscore before uppercase letter when:
+        # - Case A: current is upper AND previous is lower or digit (normal word boundary)
+        # - Case B: current is upper AND next is lower AND previous is upper (acronym-to-word transition)
+        chars = []
+        for i, char in enumerate(text):
+            if char.isupper() and i > 0:
+                prev_char = text[i - 1]
+                next_char = text[i + 1] if i + 1 < len(text) else None
+                # Case A: previous is lowercase or digit (e.g., paramId -> param_Id, hello1World -> hello1_World)
+                if prev_char.islower() or prev_char.isdigit():
+                    chars.append('_')
+                # Case B: acronym-to-word transition (e.g., HTTPServer -> HTTP_Server)
+                elif next_char and next_char.islower() and prev_char.isupper():
+                    chars.append('_')
+            chars.append(char)
+        snake_text = ''.join(chars).lower()
     elif in_style in ('phrase', 'title'):
         snake_text = text.replace(' ', '_').lower()
     else:

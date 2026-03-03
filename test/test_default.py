@@ -1603,6 +1603,33 @@ def test_convert_compound_cases():
     assert util.convert_compound_cases('My_Gain_(dB)', 'title') == 'My Gain (dB)'
     assert util.convert_compound_cases('my_external_signal_(dB)', 'title') == 'My External Signal (dB)'
 
+    # Test acronym handling in pascal/camel case
+    assert util.convert_compound_cases('ParamID', style='snake') == 'param_id', 'ID should stay together as acronym'
+    assert util.convert_compound_cases('ParamID', style='SNAKE') == 'PARAM_ID', 'ID should stay together as acronym'
+    assert util.convert_compound_cases('HTTPSConnection', style='snake') == 'https_connection', 'HTTPS should stay together'
+    assert util.convert_compound_cases('HTTPSConnection', style='SNAKE') == 'HTTPS_CONNECTION', 'HTTPS should stay together'
+    assert util.convert_compound_cases('XMLParser', style='snake') == 'xml_parser', 'XML should stay together'
+    assert util.convert_compound_cases('XMLParser', style='SNAKE') == 'XML_PARSER', 'XML should stay together'
+    assert util.convert_compound_cases('getHTTPResponseCode', style='snake') == 'get_http_response_code', 'HTTP should stay together'
+    assert util.convert_compound_cases('getHTTPResponseCode', style='SNAKE') == 'GET_HTTP_RESPONSE_CODE', 'HTTP should stay together'
+    assert util.convert_compound_cases('IOError', style='snake') == 'io_error', 'IO should stay together'
+    assert util.convert_compound_cases('IOError', style='SNAKE') == 'IO_ERROR', 'IO should stay together'
+    assert util.convert_compound_cases('parseHTMLString', style='snake') == 'parse_html_string', 'HTML should stay together'
+    assert util.convert_compound_cases('parseHTMLString', style='SNAKE') == 'PARSE_HTML_STRING', 'HTML should stay together'
+    assert util.convert_compound_cases('URLPath', style='snake') == 'url_path', 'URL should stay together'
+    assert util.convert_compound_cases('URLPath', style='SNAKE') == 'URL_PATH', 'URL should stay together'
+    assert util.convert_compound_cases('HTTPSConnectionHTTPS', style='snake') == 'https_connection_https', 'Multiple acronyms'
+    assert util.convert_compound_cases('HTTPSConnectionHTTPS', style='SNAKE') == 'HTTPS_CONNECTION_HTTPS', 'Multiple acronyms'
+
+    # Test round-trip conversions with acronyms
+    # Note: Converting from snake_case to PascalCase capitalizes each word, losing acronym info
+    assert util.convert_compound_cases('param_id', style='pascal') == 'ParamId', 'snake to pascal'
+    assert util.convert_compound_cases('https_connection', style='pascal') == 'HttpsConnection', 'snake to pascal'
+    # Note: Converting PascalCase with acronyms to camelCase goes through snake_case intermediate,
+    # which loses the acronym capitalization info, so ParamID -> param_id -> paramId
+    assert util.convert_compound_cases('ParamID', style='camel') == 'paramId', 'pascal to camel with acronym'
+    assert util.convert_compound_cases('HTTPSConnection', style='camel') == 'httpsConnection', 'pascal to camel with acronym'
+
 
 def test_append_lineends_to_lines():
     assert util.append_lineends_to_lines(
