@@ -1813,6 +1813,33 @@ def convert_compound_cases(text, style='pascal', instyle='auto'):
     in_style = _detect_casing(text) if instyle == 'auto' else instyle
     if in_style == style:
         return text
+
+    # Direct pascal <-> camel conversion to preserve consecutive uppercase letters (acronyms)
+    if in_style == 'pascal' and style == 'camel':
+        if not text:
+            return text
+        # Find the first lowercase letter
+        first_lower_idx = next((i for i, c in enumerate(text) if c.islower()), len(text))
+
+        if first_lower_idx == 0:
+            return text  # Already starts with lowercase
+        elif first_lower_idx == 1:
+            # Single uppercase letter at start (e.g., "Command") -> "command"
+            return text[0].lower() + text[1:]
+        elif first_lower_idx == len(text):
+            # All uppercase (e.g., "ID", "HTTP") -> lowercase first letter only to preserve acronym
+            return text[0].lower() + text[1:]
+        else:
+            # Multiple uppercase at start followed by lowercase (e.g., "HTTPServer", "XMLParser")
+            # Lowercase all leading uppercase except the last one before lowercase
+            # "HTTPServer" -> "httpServer", "XMLParser" -> "xmlParser"
+            return text[:first_lower_idx-1].lower() + text[first_lower_idx-1:]
+
+    if in_style == 'camel' and style == 'pascal':
+        # Just uppercase the first letter
+        return text[0].upper() + text[1:] if text else text
+
+    # For all other conversions, go through snake_case as intermediate
     snake_text = text
     if in_style in ('snake', 'SNAKE'):
         snake_text = text if in_style == 'snake' else text.lower()

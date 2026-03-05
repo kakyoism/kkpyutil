@@ -1621,14 +1621,110 @@ def test_convert_compound_cases():
     assert util.convert_compound_cases('HTTPSConnectionHTTPS', style='snake') == 'https_connection_https', 'Multiple acronyms'
     assert util.convert_compound_cases('HTTPSConnectionHTTPS', style='SNAKE') == 'HTTPS_CONNECTION_HTTPS', 'Multiple acronyms'
 
-    # Test round-trip conversions with acronyms
-    # Note: Converting from snake_case to PascalCase capitalizes each word, losing acronym info
-    assert util.convert_compound_cases('param_id', style='pascal') == 'ParamId', 'snake to pascal'
+    # ========================================================================
+    # COMPREHENSIVE TESTS FOR ACRONYM HANDLING (Recent Changes)
+    # ========================================================================
+
+    # Test 1: Direct pascal <-> camel conversion (Today's fix)
+    # These conversions should NOT go through snake_case intermediate to preserve acronyms
+    print('\n--- Testing direct pascal <-> camel conversion (preserves acronyms) ---')
+
+    # Trailing acronyms should be preserved
+    assert util.convert_compound_cases('CommandID', style='camel') == 'commandID', 'Trailing acronym ID preserved'
+    assert util.convert_compound_cases('ParamID', style='camel') == 'paramID', 'Trailing acronym ID preserved'
+    assert util.convert_compound_cases('UserAPI', style='camel') == 'userAPI', 'Trailing acronym API preserved'
+    assert util.convert_compound_cases('DatabaseURL', style='camel') == 'databaseURL', 'Trailing acronym URL preserved'
+
+    # Leading acronyms should be lowercased as a block
+    assert util.convert_compound_cases('HTTPSConnection', style='camel') == 'httpsConnection', 'Leading acronym HTTPS lowercased'
+    assert util.convert_compound_cases('XMLParser', style='camel') == 'xmlParser', 'Leading acronym XML lowercased'
+    assert util.convert_compound_cases('URLPath', style='camel') == 'urlPath', 'Leading acronym URL lowercased'
+    assert util.convert_compound_cases('IOError', style='camel') == 'ioError', 'Leading acronym IO lowercased'
+
+    # All uppercase should lowercase first letter only
+    assert util.convert_compound_cases('ID', style='camel') == 'iD', 'All caps ID -> iD'
+    assert util.convert_compound_cases('HTTP', style='camel') == 'hTTP', 'All caps HTTP -> hTTP'
+    assert util.convert_compound_cases('API', style='camel') == 'aPI', 'All caps API -> aPI'
+
+    # Reverse: camel -> pascal (just uppercase first letter)
+    assert util.convert_compound_cases('commandID', style='pascal') == 'CommandID', 'camel to pascal preserves acronym'
+    assert util.convert_compound_cases('httpsConnection', style='pascal') == 'HttpsConnection', 'camel to pascal'
+    assert util.convert_compound_cases('userAPI', style='pascal') == 'UserAPI', 'camel to pascal preserves acronym'
+
+    # Test 2: Smart acronym detection in pascal/camel -> snake conversion
+    # Consecutive uppercase letters should stay together as one word
+    print('\n--- Testing smart acronym detection (consecutive caps stay together) ---')
+
+    # Single trailing acronym
+    assert util.convert_compound_cases('CommandID', style='snake') == 'command_id', 'ID stays together, not I_D'
+    assert util.convert_compound_cases('ParamID', style='snake') == 'param_id', 'ID stays together'
+    assert util.convert_compound_cases('UserAPI', style='snake') == 'user_api', 'API stays together'
+    assert util.convert_compound_cases('DatabaseURL', style='snake') == 'database_url', 'URL stays together'
+
+    # Leading acronym followed by word
+    assert util.convert_compound_cases('HTTPServer', style='snake') == 'http_server', 'HTTP stays together'
+    assert util.convert_compound_cases('XMLParser', style='snake') == 'xml_parser', 'XML stays together'
+    assert util.convert_compound_cases('IOError', style='snake') == 'io_error', 'IO stays together'
+    assert util.convert_compound_cases('URLPath', style='snake') == 'url_path', 'URL stays together'
+
+    # Multiple acronyms
+    assert util.convert_compound_cases('HTTPSConnectionHTTPS', style='snake') == 'https_connection_https', 'Multiple acronyms'
+    assert util.convert_compound_cases('APIURLHTTP', style='snake') == 'apiurlhttp', 'All acronyms together'
+    assert util.convert_compound_cases('GetHTTPSURL', style='snake') == 'get_httpsurl', 'Mixed word and acronyms'
+
+    # Acronym in the middle
+    assert util.convert_compound_cases('getHTTPResponseCode', style='snake') == 'get_http_response_code', 'HTTP in middle'
+    assert util.convert_compound_cases('parseHTMLString', style='snake') == 'parse_html_string', 'HTML in middle'
+    assert util.convert_compound_cases('loadXMLDocument', style='snake') == 'load_xml_document', 'XML in middle'
+
+    # Test 3: Acronym-to-word transition detection
+    # When acronym is followed by a word, split correctly (e.g., HTTPServer -> HTTP_Server)
+    print('\n--- Testing acronym-to-word transition ---')
+
+    assert util.convert_compound_cases('HTTPSConnection', style='snake') == 'https_connection', 'HTTPS + Connection'
+    assert util.convert_compound_cases('XMLParser', style='snake') == 'xml_parser', 'XML + Parser'
+    assert util.convert_compound_cases('IOError', style='snake') == 'io_error', 'IO + Error'
+    assert util.convert_compound_cases('URLEncoder', style='snake') == 'url_encoder', 'URL + Encoder'
+
+    # Test 4: Edge cases with digits
+    print('\n--- Testing acronyms with digits ---')
+
+    assert util.convert_compound_cases('OAuth2Client', style='snake') == 'o_auth2_client', 'Digit treated as part of word'
+    assert util.convert_compound_cases('Base64Encoder', style='snake') == 'base64_encoder', 'Digit in middle'
+    assert util.convert_compound_cases('MD5Hash', style='snake') == 'md5_hash', 'Digit after acronym'
+
+    # Test 5: Round-trip conversions
+    print('\n--- Testing round-trip conversions ---')
+
+    # Note: snake_case loses acronym information, so round-trip won't preserve it
+    assert util.convert_compound_cases('param_id', style='pascal') == 'ParamId', 'snake to pascal (loses acronym info)'
     assert util.convert_compound_cases('https_connection', style='pascal') == 'HttpsConnection', 'snake to pascal'
-    # Note: Converting PascalCase with acronyms to camelCase goes through snake_case intermediate,
-    # which loses the acronym capitalization info, so ParamID -> param_id -> paramId
-    assert util.convert_compound_cases('ParamID', style='camel') == 'paramId', 'pascal to camel with acronym'
-    assert util.convert_compound_cases('HTTPSConnection', style='camel') == 'httpsConnection', 'pascal to camel with acronym'
+
+    # But pascal <-> camel should preserve acronyms
+    original = 'CommandID'
+    to_camel = util.convert_compound_cases(original, style='camel')
+    back_to_pascal = util.convert_compound_cases(to_camel, style='pascal')
+    assert to_camel == 'commandID', 'pascal to camel preserves acronym'
+    assert back_to_pascal == 'CommandID', 'camel to pascal round-trip preserves acronym'
+
+    # Test 6: Regression tests - ensure old functionality still works
+    print('\n--- Regression tests (ensure no breakage) ---')
+
+    # Normal PascalCase/camelCase without acronyms
+    assert util.convert_compound_cases('HelloWorld', style='snake') == 'hello_world', 'Normal PascalCase'
+    assert util.convert_compound_cases('helloWorld', style='snake') == 'hello_world', 'Normal camelCase'
+    assert util.convert_compound_cases('HelloWorld', style='camel') == 'helloWorld', 'PascalCase to camelCase'
+    assert util.convert_compound_cases('helloWorld', style='pascal') == 'HelloWorld', 'camelCase to PascalCase'
+
+    # Single letter words should still work
+    assert util.convert_compound_cases('ATest', style='snake') == 'a_test', 'Single letter word'
+    assert util.convert_compound_cases('TestA', style='snake') == 'test_a', 'Trailing single letter'
+
+    # Mixed case with numbers
+    assert util.convert_compound_cases('Hello1World2', style='snake') == 'hello1_world2', 'Numbers treated as part of word'
+
+    print('\n--- All acronym handling tests passed! ---')
+
 
 
 def test_append_lineends_to_lines():
