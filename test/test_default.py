@@ -847,6 +847,15 @@ def test_extract_call_args():
     # ast.Name
 
 
+def test_extract_call_args_does_not_import_source_module():
+    src_file = osp.join(_org_dir, 'ast_import_failing.py')
+
+    func_calls, method_calls = util.extract_call_args(src_file, 'main', 'my_func')
+
+    assert func_calls == [{'args': ['value'], 'kwargs': {'enabled': True}, 'lineno': 5, 'end_lineno': 5}]
+    assert not method_calls
+
+
 def test_extract_class_attributes():
     src_file = osp.join(_org_dir, 'ast_test.py')
     attrs = util.extract_class_attributes(src_file, 'MyClass')

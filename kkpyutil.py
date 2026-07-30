@@ -1492,6 +1492,7 @@ def extract_call_args(file, caller, callee):
     """
     - only support literal args
     - will throw if an arg value is a function call itself
+    - parse source directly without importing the target module
     """
 
     def _get_arg_value(argument):
@@ -1521,10 +1522,8 @@ def extract_call_args(file, caller, callee):
         class_def = next((node for node in parsed.body if isinstance(node, ast.ClassDef) and node.name == cls), None)
         return next((node for node in class_def.body if isinstance(node, ast.FunctionDef) and node.name == func), None)
 
-    import inspect
-    mod_name = osp.splitext(osp.basename(file))[0]
-    mod = safe_import_module(mod_name, osp.dirname(file))
-    parsed = ast.parse(inspect.getsource(mod))
+    with open(file, encoding='utf-8') as source_file:
+        parsed = ast.parse(source_file.read(), filename=file)
     # caller can be class.method or function
     spl = caller.split('.')
     if len(spl) > 1:
@@ -1554,8 +1553,6 @@ def extract_call_args(file, caller, callee):
                 'end_lineno': call.end_lineno,
             }
             calls[calltype].append(record)
-    if mod_name in sys.modules:
-        sys.modules.pop(mod_name)
     return calls['func'], calls['method']
 
 
