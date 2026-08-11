@@ -1429,6 +1429,42 @@ def run_daemon(cmd, cwd=None, logger=None, shell=False, verbose=False, useexcept
         return _log_subprocess_startup_error(e, cmd, logger, useexception)
 
 
+def run_detached(cmd, cwd=None, logger=None, env=None, hidedoswin=True):
+    """
+    Start a FULLY DETACHED subprocess that OUTLIVES the parent.
+
+    Unlike run_daemon(), this is fire-and-forget: the child is placed in its own session
+    (POSIX) or process group (Windows) and its std streams go to DEVNULL, so the parent can
+    exit immediately without leaving a pipe reader that would block on a full buffer or keep
+    the child tethered. Use it for hand-off scenarios (self-update relaunch, external
+    installers) where the spawner is about to terminate. It returns the child PID (int), not
+    a Popen: there is intentionally no communicate()/wait() contract, because the parent is
+    not expected to still be alive to honour one.
+
+    Contrast with run_daemon(): run_daemon keeps stdout/stderr PIPEs open so the parent can
+    supervise/read the background job later; DO NOT use run_daemon when the parent will exit.
+    """
+    cmd = [comp if isinstance(comp, str) else str(comp) for comp in cmd]
+    logger = logger or glogger
+    _log_subprocess_command(cmd, cwd, logger, "run_detached")
+    try:
+        if PLATFORM == 'Windows':
+            flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+            if hidedoswin:
+                flags |= subprocess.CREATE_NO_WINDOW
+            proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                    creationflags=flags, close_fds=True)
+        else:
+            proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                    start_new_session=True, close_fds=True)
+        logger.info(f"Detached process started successfully (PID: {proc.pid})")
+        return proc.pid
+    except Exception as e:
+        return _log_subprocess_startup_error(e, cmd, logger, useexception=True)
+
+
 def watch_cmd(cmd, cwd=None, logger=None, shell=False, verbose=False, useexception=True, prompt=None, timeout=None, env=None, hidedoswin=True):
     """
     realtime output
