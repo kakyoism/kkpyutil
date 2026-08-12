@@ -564,6 +564,54 @@ def test_init_translator():
     util.safe_remove(_gen_dir)
 
 
+def _write_mo(mo_path, entries):
+    """
+    Minimal GNU .mo writer (LE) for tests: entries = {msgid: msgstr} (str).
+    Layout: magic, revision, N, off_orig, off_trans, hash=0, off_hash,
+    then orig/trans descriptor tables, then the string blob. Include the empty
+    msgid '' metadata with a UTF-8 Content-Type so GNUTranslations decodes msgstr.
+    """
+    import struct
+    items = [('', 'Content-Type: text/plain; charset=UTF-8\n')] + sorted(entries.items())
+    ids = b'\x00'.join(k.encode('utf-8') for k, _ in items)
+    strs = b'\x00'.join(v.encode('utf-8') for _, v in items)
+    n = len(items)
+    o_orig = 7 * 4
+    o_trans = o_orig + n * 8
+    o_ids = o_trans + n * 8
+    out = bytearray()
+    out += struct.pack('<Iiiiiii', 0x950412de, 0, n, o_orig, o_trans, 0, 0)
+    off = o_ids
+    ids_parts = [k.encode('utf-8') for k, _ in items]
+    for p in ids_parts:
+        out += struct.pack('<ii', len(p), off); off += len(p) + 1
+    off = o_ids + len(ids) + 1
+    strs_parts = [v.encode('utf-8') for _, v in items]
+    for p in strs_parts:
+        out += struct.pack('<ii', len(p), off); off += len(p) + 1
+    out += ids + b'\x00' + strs + b'\x00'
+    os.makedirs(osp.dirname(mo_path), exist_ok=True)
+    with open(mo_path, 'wb') as f:
+        f.write(bytes(out))
+
+
+def test_load_translations():
+    with tempfile.TemporaryDirectory() as tmp:
+        loc = osp.join(tmp, 'locale')
+        _write_mo(osp.join(loc, 'zh_CN', 'LC_MESSAGES', 'all.mo'), {'Hello': '你好'})
+        # en_US intentionally has NO .mo -> identity fallback
+        lt = util.load_translations(loc, langs=['en_US', 'zh_CN'])
+        assert set(lt.available()) == {'en_US', 'zh_CN'}
+        # initial active = first locale (en_US, identity)
+        assert lt.translate('Hello') == 'Hello'
+        lt.set_language('zh_CN')
+        assert lt('Hello') == '你好'          # __call__ alias + flip works
+        lt.set_language('en_US')
+        assert lt.translate('Hello') == 'Hello'   # identity for missing .mo
+        lt.set_language('fr_FR')                   # unknown -> identity
+        assert lt.translate('Hello') == 'Hello'
+
+
 def test_match_files_except_lines():
     file1 = osp.abspath(f'{_org_dir}/match_files/ours.txt')
     file2 = osp.abspath(f'{_org_dir}/match_files/theirs.txt')

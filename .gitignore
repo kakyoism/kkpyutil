@@ -3,11 +3,12 @@ test/_gen
 test/skip_slow_tests.cfg.txt
 # JetBrains
 .idea/copilot*
-.idea/poetry.xml
-.idea/workspace.xml
+.idea/inspectionProfiles
 .idea/kkpyutil.iml
 .idea/misc.xml
-.idea/inspectionProfiles
+.idea/poetry.xml
+.idea/pyProjectModel.xml
+.idea/workspace.xml
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

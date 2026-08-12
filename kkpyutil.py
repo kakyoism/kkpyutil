@@ -1049,6 +1049,55 @@ def init_translator(localedir, domain='all', langs=None):
     return trans
 
 
+class LiveTranslator:
+    """
+    Hold multiple gettext catalogs and flip the active one at runtime (no restart).
+    - build one catalog per requested locale via gettext.translation(fallback=True);
+      a locale whose .mo is missing degrades to identity (NullTranslations), so the
+      app keeps working before catalogs are compiled.
+    - callable: translate(msgid) / __call__(msgid) uses the active catalog.
+    - set_language(code): flip active catalog; unknown code -> identity.
+    Thread-safety: flip on the owning (GUI) thread only; reads are lock-free.
+    """
+
+    def __init__(self, localedir, domain='all', langs=None):
+        self.localedir = localedir
+        self.domain = domain
+        self.langs = list(langs) if langs else []
+        # locale -> gettext catalog (NullTranslations when .mo missing)
+        self.catalogs = {}
+        for loc in self.langs:
+            self.catalogs[loc] = gettext.translation(
+                domain, localedir=localedir, languages=[loc], fallback=True)
+        # active catalog: first requested locale, else a global identity fallback
+        self.active = self.catalogs.get(self.langs[0]) if self.langs else gettext.NullTranslations()
+
+    def available(self):
+        """Return the list of locales that were requested/loaded."""
+        return list(self.catalogs.keys())
+
+    def set_language(self, code):
+        """Flip active catalog to `code`; unknown/None code -> identity fallback."""
+        self.active = self.catalogs.get(code) or gettext.NullTranslations()
+        return self.active
+
+    def translate(self, msgid):
+        return self.active.gettext(msgid)
+
+    __call__ = translate
+
+
+def load_translations(localedir, domain='all', langs=None):
+    """
+    Build a LiveTranslator holding one catalog per locale in `langs` for live switching.
+    - additive companion to init_translator(); does NOT install() into builtins.
+    - missing .mo per locale degrades to identity (see LiveTranslator), so callers work
+      before catalogs are compiled and unit tests need no prebuilt .mo.
+    - langs example: ['en_US', 'zh_CN']; the first is the initial active locale.
+    """
+    return LiveTranslator(localedir, domain=domain, langs=langs)
+
+
 def match_files_except_lines(file1, file2, excluded=None):
     with open(file1) as fp:
         content1 = fp.readlines()
