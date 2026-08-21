@@ -231,12 +231,13 @@ class RerunLock:
     - if name is a path, e.g., __file__, then lockfile will be named after its basename
     """
 
-    def __init__(self, name, folder=None, logger=None, max_instances=1):
+    def __init__(self, name, folder=None, logger=None, max_instances=1, check_stale_pid=False):
         folder = folder or osp.join(get_platform_tmp_dir(), '_util')
         filename = f'lock_{extract_path_stem(name)}.{os.getpid()}.lock.json'
         self.name = name
         self.lockFile = osp.join(folder, filename)
         self.nMaxInstances = max_instances
+        self.checkStalePid = check_stale_pid
         self.logger = logger or glogger
         # CAUTION:
         # - windows grpc server crashes with signals:
@@ -280,6 +281,15 @@ class RerunLock:
 
     def lock(self):
         locks = [osp.basename(lock) for lock in glob.glob(osp.join(osp.dirname(self.lockFile), f'lock_{extract_path_stem(self.name)}.*.lock.json'))]
+        if self.checkStalePid:
+            live_locks = []
+            for lock in locks:
+                pid = int(lock.split(".")[1])
+                if is_pid_running(pid):
+                    live_locks.append(lock)
+                else:
+                    safe_remove(osp.join(osp.dirname(self.lockFile), lock))
+            locks = live_locks
         is_locked = len(locks) >= self.nMaxInstances
         if is_locked:
             locker_pids = [int(lock.split(".")[1]) for lock in locks]
@@ -1110,7 +1120,7 @@ def match_files_except_lines(file1, file2, excluded=None):
     return content1 == content2
 
 
-def rerun_lock(name, folder=None, logger=glogger, max_instances=1):
+def rerun_lock(name, folder=None, logger=glogger, max_instances=1, check_stale_pid=False):
     """Decorator for reentrance locking on functions"""
 
     def decorator(f):
@@ -1118,7 +1128,7 @@ def rerun_lock(name, folder=None, logger=glogger, max_instances=1):
         def wrapper(*args, **kwargs):
             my_lock = None
             try:
-                my_lock = RerunLock(name, folder, logger, max_instances)
+                my_lock = RerunLock(name, folder, logger, max_instances, check_stale_pid)
                 if not my_lock.lock():
                     return 1
                 try:

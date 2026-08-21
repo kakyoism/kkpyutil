@@ -649,6 +649,26 @@ def test_rerunlock_class(monkeypatch):
     assert str(exc_info.value) == f"Terminated due to signal: {signal.Signals(signal.SIGINT).name}; Will unlock"
 
 
+def test_rerunlock_class_check_stale_pid(monkeypatch):
+    _gen_dir = osp.join(util.get_platform_tmp_dir(), '_test_rerunlock_stale')
+    util.safe_remove(_gen_dir)
+    os.makedirs(_gen_dir, exist_ok=True)
+    # Stale lock: PID 99999 should not be running
+    stale_lock = osp.join(_gen_dir, 'lock_test.99999.lock.json')
+    util.save_json(stale_lock, {'pid': 99999, 'name': 'test'})
+    run_lock = util.RerunLock(name='test', folder=_gen_dir, check_stale_pid=True)
+    assert run_lock.lock()
+    assert not osp.isfile(stale_lock)
+    run_lock.unlock()
+    # Live lock: current PID is running
+    live_lock = osp.join(_gen_dir, f'lock_test.{os.getpid()}.lock.json')
+    util.save_json(live_lock, {'pid': os.getpid(), 'name': 'test'})
+    run_lock2 = util.RerunLock(name='test', folder=_gen_dir, check_stale_pid=True)
+    assert not run_lock2.lock()
+    util.safe_remove(live_lock)
+    util.safe_remove(_gen_dir)
+
+
 def test_rerun_lock(monkeypatch):
     @util.rerun_lock('test', _gen_dir)
     def _worker():
@@ -707,6 +727,25 @@ def test_rerun_lock(monkeypatch):
         _mock_misc_exception()
     except Exception:
         assert not osp.isfile(lock_file)
+    util.safe_remove(_gen_dir)
+
+
+def test_rerun_lock_check_stale_pid(monkeypatch):
+    _gen_dir = osp.join(util.get_platform_tmp_dir(), '_test_rerunlock_decorator_stale')
+    util.safe_remove(_gen_dir)
+    os.makedirs(_gen_dir, exist_ok=True)
+
+    @util.rerun_lock('test', _gen_dir, check_stale_pid=True)
+    def _worker():
+        util.touch(osp.join(_gen_dir, 'entered'))
+
+    # Stale lock present — should still run
+    stale_lock = osp.join(_gen_dir, 'lock_test.99999.lock.json')
+    util.save_json(stale_lock, {'pid': 99999, 'name': 'test'})
+    ret = _worker()
+    assert ret != 1
+    assert osp.isfile(osp.join(_gen_dir, 'entered'))
+    util.safe_remove(osp.join(_gen_dir, 'entered'))
     util.safe_remove(_gen_dir)
 
 
