@@ -2698,6 +2698,54 @@ def test_is_pid_running():
     assert not util.is_pid_running(99999)
 
 
+def test_is_pid_running_windows_invalid_parameter_returns_false(monkeypatch):
+    class Kernel32:
+        def OpenProcess(self, *_args):
+            return 0
+
+    monkeypatch.setattr(util, 'PLATFORM', 'Windows')
+    monkeypatch.setattr(util.ctypes, 'WinDLL', lambda *_args, **_kwargs: Kernel32(), raising=False)
+    monkeypatch.setattr(util.ctypes, 'get_last_error', lambda: 87, raising=False)
+
+    assert not util.is_pid_running(74588)
+
+
+def test_is_pid_running_windows_access_denied_counts_as_running(monkeypatch):
+    class Kernel32:
+        def OpenProcess(self, *_args):
+            return 0
+
+    monkeypatch.setattr(util, 'PLATFORM', 'Windows')
+    monkeypatch.setattr(util.ctypes, 'WinDLL', lambda *_args, **_kwargs: Kernel32(), raising=False)
+    monkeypatch.setattr(util.ctypes, 'get_last_error', lambda: 5, raising=False)
+
+    assert util.is_pid_running(4)
+
+
+def test_is_pid_running_windows_uses_exit_code_for_live_handles(monkeypatch):
+    class Kernel32:
+        def __init__(self):
+            self.closed = []
+
+        def OpenProcess(self, *_args):
+            return 1234
+
+        def GetExitCodeProcess(self, _handle, exit_code_ptr):
+            exit_code_ptr._obj.value = 259
+            return 1
+
+        def CloseHandle(self, handle):
+            self.closed.append(handle)
+            return 1
+
+    kernel32 = Kernel32()
+    monkeypatch.setattr(util, 'PLATFORM', 'Windows')
+    monkeypatch.setattr(util.ctypes, 'WinDLL', lambda *_args, **_kwargs: kernel32, raising=False)
+
+    assert util.is_pid_running(1234)
+    assert kernel32.closed == [1234]
+
+
 @util.thread_timeout(1)
 def _do_it_until_thread_timeout(sec):
     time.sleep(sec)

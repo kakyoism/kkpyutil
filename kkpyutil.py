@@ -15,6 +15,7 @@ import collections
 import concurrent.futures
 import configparser
 import copy
+import ctypes
 import csv
 import datetime
 import difflib
@@ -1150,6 +1151,30 @@ def rerun_lock(name, folder=None, logger=glogger, max_instances=1, check_stale_p
 
 
 def is_pid_running(pid):
+    if PLATFORM == 'Windows':
+        if pid <= 0:
+            return False
+        process_query_limited_information = 0x1000
+        still_active = 259
+        get_last_error = getattr(ctypes, 'get_last_error', lambda: 0)
+        kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        if hasattr(kernel32.OpenProcess, 'argtypes'):
+            kernel32.OpenProcess.argtypes = [ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong]
+            kernel32.OpenProcess.restype = ctypes.c_void_p
+            kernel32.GetExitCodeProcess.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
+            kernel32.GetExitCodeProcess.restype = ctypes.c_int
+            kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+            kernel32.CloseHandle.restype = ctypes.c_int
+        process_handle = kernel32.OpenProcess(process_query_limited_information, False, pid)
+        if not process_handle:
+            return get_last_error() == 5  # access denied => process exists
+        try:
+            exit_code = ctypes.c_ulong()
+            if not kernel32.GetExitCodeProcess(process_handle, ctypes.byref(exit_code)):
+                return get_last_error() == 5
+            return exit_code.value == still_active
+        finally:
+            kernel32.CloseHandle(process_handle)
     try:
         # os.kill(pid, 0) doesn't actually kill the process but sends a harmless signal
         # This will throw an OSError exception if the PID is not running, and do nothing otherwise
