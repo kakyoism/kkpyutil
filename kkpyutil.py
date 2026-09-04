@@ -2619,8 +2619,9 @@ def init_repo(srcfile_or_dir, appdepth=2, repodepth=3, organization='mycompany',
     # - do not include repo to sys path here
     # - always use lazy_extend and lazy_remove
     # just have fixed initial folders to meet most needs in core and tests
-    app.locDir, app.srcDir, app.tmpDir, app.testDir = get_child_dirs(app_root := app.ancestorDirs[appdepth - 1], subs=('locale', 'src', 'temp', 'test'))
+    app.locDir, app.resDir, app.srcDir, app.tmpDir, app.testDir = get_child_dirs(app_root := app.ancestorDirs[appdepth - 1], subs=('locale', 'res',  'src', 'temp', 'test'))
     app.pubTmpDir = osp.join(get_platform_tmp_dir(), organization, osp.basename(app_root))
+    app.appDataDir = osp.join(get_platform_appdata_dir(), organization, osp.basename(app_root))
     app.stem = osp.splitext(osp.basename(srcfile_or_dir))[0]
     app.logger = build_default_logger(app.tmpDir, name=logname if logname else app.stem, verbose=verbose)
     if uselocale:
