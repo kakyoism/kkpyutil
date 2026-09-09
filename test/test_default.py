@@ -2112,11 +2112,16 @@ def test_sync_directories_overwrites_existing(tmp_path):
     # 3. Execute the function
     util.sync_dirs(str(src_dir), str(dst_dir))
 
-    # 4. Assertions
+    # 4. Test empty dest
+    dst_dir2 = tmp_path / "not_exist"
+    util.sync_dirs(str(src_dir), str(dst_dir2))
+
+    # 5. Assertions
     # Check if the file was overwritten
     assert dst_file.read_text() == "New Content"
     # Check if the directory structure exists
     assert os.path.isdir(dst_content_dir_1)
+    assert osp.isdir(dst_dir2)
 
 
 def test_sync_directories_handles_missing_src(capsys):
