@@ -3053,3 +3053,7 @@ def test_join_unc_paths():
 
     # Test using raw string syntax (more natural for Windows paths)
     assert util.join_unc_paths(r'\\server', r'share\subfolder', r'file.txt') == r'\server\share\subfolder\file.txt'
+
+def test_log_as_banner():
+    lines = ['1', '2', 'end']
+    assert util.log_as_banner(lines) == f'\n{"="*60}\n1\n2\nend\n{"="*60}'

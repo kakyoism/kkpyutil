@@ -3404,6 +3404,16 @@ def join_unc_paths(*paths):
     # 3. Join everything with single backslashes
     return prefix + '\\'.join(segments)
 
+def log_as_banner(lines, logger=None, length=60):
+    my_logger = logger or glogger
+    if isinstance(lines, str):
+        lines = [lines]
+    op, ed = [f"\n{'=' * 60}"], [f"{'=' * 60}"]
+    banner = op + lines + ed
+    msg = '\n'.join(banner)
+    my_logger.info(msg)
+    return msg
+
 
 # endregion
 
