@@ -3057,3 +3057,10 @@ def test_join_unc_paths():
 def test_log_as_banner():
     lines = ['1', '2', 'end']
     assert util.log_as_banner(lines) == f'\n{"="*60}\n1\n2\nend\n{"="*60}'
+
+def test_log_as_section():
+    title_lines = ['SUMMARY', '- by kk']
+    body_lines = ['1', '2', 'end']
+    assert util.log_as_section(title_lines, body_lines) == f'\n{"="*60}\nSUMMARY\n- by kk\n{"="*60}\n1\n2\nend\n\n{"="*60}'
+
+

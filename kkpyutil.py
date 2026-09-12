@@ -3414,6 +3414,18 @@ def log_as_banner(lines, logger=None, length=60):
     my_logger.info(msg)
     return msg
 
+def log_as_section(title_lines, body_lines, logger=None, length=60):
+    my_logger = logger or glogger
+    if isinstance(title_lines, str):
+        title_lines = [title_lines]
+    if isinstance(body_lines, str):
+        body_lines = [body_lines]
+    op, ed = [f"\n{'=' * 60}"], [f"{'=' * 60}"]
+    total_lines = op + title_lines + ed + body_lines + op
+    msg = '\n'.join(total_lines)
+    my_logger.info(msg)
+    return msg
+
 
 # endregion
 
