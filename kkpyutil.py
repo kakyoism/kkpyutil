@@ -3405,17 +3405,16 @@ def join_unc_paths(*paths):
     return prefix + '\\'.join(segments)
 
 def log_as_banner(lines, logger=None, length=60):
-    my_logger = logger or glogger
     if isinstance(lines, str):
         lines = [lines]
     op, ed = [f"\n{'=' * 60}"], [f"{'=' * 60}"]
     banner = op + lines + ed
     msg = '\n'.join(banner)
-    my_logger.info(msg)
+    if logger:
+        logger.info(msg)
     return msg
 
 def log_as_section(title_lines, body_lines, logger=None, length=60):
-    my_logger = logger or glogger
     if isinstance(title_lines, str):
         title_lines = [title_lines]
     if isinstance(body_lines, str):
@@ -3423,7 +3422,8 @@ def log_as_section(title_lines, body_lines, logger=None, length=60):
     op, ed = [f"\n{'=' * 60}"], [f"{'=' * 60}"]
     total_lines = op + title_lines + ed + body_lines + op
     msg = '\n'.join(total_lines)
-    my_logger.info(msg)
+    if logger:
+        logger.info(msg)
     return msg
 
 
