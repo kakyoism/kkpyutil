@@ -669,6 +669,31 @@ def test_rerunlock_class_check_stale_pid(monkeypatch):
     util.safe_remove(_gen_dir)
 
 
+def test_rerunlock_class_rejects_replaced_owner(tmp_path):
+    run_lock = util.RerunLock(name='test', folder=str(tmp_path))
+    assert run_lock.lock()
+    lock_data = util.load_json(run_lock.lockFile)
+    lock_data['token'] = 'replacement'
+    util.save_json(run_lock.lockFile, lock_data)
+
+    assert not run_lock.unlock()
+    assert osp.isfile(run_lock.lockFile)
+    util.safe_remove(run_lock.lockFile)
+
+
+def test_rerun_lock_raises_optional_lock_error(tmp_path):
+    owner = util.RerunLock(name='test', folder=str(tmp_path))
+    assert owner.lock()
+
+    @util.rerun_lock('test', str(tmp_path), lock_error=RuntimeError)
+    def _worker():
+        return True
+
+    with pytest.raises(RuntimeError, match='test is already running'):
+        _worker()
+    owner.unlock()
+
+
 def test_rerun_lock(monkeypatch):
     @util.rerun_lock('test', _gen_dir)
     def _worker():
